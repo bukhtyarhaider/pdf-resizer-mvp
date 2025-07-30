@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF Resize</title>
+</head>
+<body>
+  <h1>Resize and Download PDF</h1>
+  <form action="/resize" method="post" enctype="multipart/form-data">
+    <label>Select PDF: <input type="file" name="pdf" required /></label><br />
+    <label>Paper Size:
+      <select name="size">
+        <option value="A0">A0</option>
+        <option value="A1" selected>A1</option>
+        <option value="A2">A2</option>
+        <option value="A3">A3</option>
+      </select>
+    </label><br />
+    <label>Order #: <input type="text" name="orderNumber" value="1244" /></label><br />
+    <label>File #: <input type="text" name="fileNumber" value="1" /></label><br />
+    <button type="submit">Resize PDF</button>
+  </form>
+</body>
+</html>
