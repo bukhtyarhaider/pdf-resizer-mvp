@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Resize</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
-  <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center py-8">
+  <div class="bg-white p-8 rounded-xl shadow-lg max-w-4xl w-full">
     <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Resize Your PDF</h1>
     <form id="pdfForm" action="/resize" method="post" enctype="multipart/form-data" class="space-y-4">
       <div>
@@ -42,21 +43,61 @@
           <option value="A3">A3</option>
         </select>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Order Number</label>
-        <input type="text" name="orderNumber" value="1244" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">File Number</label>
-        <input type="text" name="fileNumber" value="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
-      </div>
       <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-150">
-        Resize & Download
+        Resize PDF
       </button>
     </form>
+
+    <div class="mt-8">
+      <h2 class="text-lg font-semibold text-gray-800 mb-4">Processed Files</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Type</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">File</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original Dimensions</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original Size</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Dimensions</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Size</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Time</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Action</th>
+            </tr>
+          </thead>
+          <tbody id="fileTableBody" class="divide-y divide-gray-200">
+            <!-- File rows will be added dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script>
+    let originalFile = null;
+    let originalFileDimensions = null;
+    let fileCounter = 1;
+    const orderNumber = "XYZ";
+
+    async function getPdfDimensions(file) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.0 });
+        const { width, height } = viewport;
+        return { width: width.toFixed(2), height: height.toFixed(2) };
+      } catch (error) {
+        console.error('Error getting PDF dimensions:', error);
+        return { width: 'N/A', height: 'N/A' };
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
     function handleDrop(event) {
       event.preventDefault();
       const dropZone = event.target.closest('#dropZone');
@@ -65,7 +106,11 @@
       const files = event.dataTransfer.files;
       if (files.length && files[0].type === 'application/pdf') {
         fileInput.files = files;
+        originalFile = files[0];
         document.getElementById('fileName').textContent = files[0].name;
+        getPdfDimensions(originalFile).then(dims => {
+          originalFileDimensions = dims;
+        });
       } else {
         alert('Please drop a valid PDF file.');
       }
@@ -74,22 +119,74 @@
     function handleFileSelect(event) {
       const fileInput = event.target;
       if (fileInput.files.length) {
-        document.getElementById('fileName').textContent = fileInput.files[0].name;
+        originalFile = fileInput.files[0];
+        document.getElementById('fileName').textContent = originalFile.name;
+        getPdfDimensions(originalFile).then(dims => {
+          originalFileDimensions = dims;
+        });
       }
     }
 
-    // Enable click-to-select on drop zone
-    document.getElementById('dropZone').addEventListener('click', () => {
-      document.getElementById('fileInput').click();
-    });
-
-    // Validate form before submission
-    document.getElementById('pdfForm').addEventListener('submit', function(event) {
+    document.getElementById('pdfForm').addEventListener('submit', async function(event) {
+      event.preventDefault();
       const fileInput = document.getElementById('fileInput');
       if (!fileInput.files.length) {
-        event.preventDefault();
         alert('Please upload a PDF file.');
+        return;
       }
+
+      const form = document.getElementById('pdfForm');
+      const formData = new FormData(form);
+      formData.append('orderNumber', orderNumber);
+      formData.append('fileNumber', fileCounter);
+
+      const startTime = performance.now();
+
+      try {
+        const response = await fetch('/resize', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to process PDF');
+        }
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition');
+        const filenameMatch = contentDisposition && contentDisposition.match(/filename="(.+)"/);
+        const filename = filenameMatch ? filenameMatch[1] : 'processed.pdf';
+        const processingTime = ((performance.now() - startTime) / 1000).toFixed(2);
+        const processedFileDimensions = await getPdfDimensions(blob);
+        const processedFileSize = blob.size;
+
+        const tableBody = document.getElementById('fileTableBody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 text-sm text-gray-600">Uploaded & Processed</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${originalFile.name}</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${originalFileDimensions.width} x ${originalFileDimensions.height} pt</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${formatFileSize(originalFile.size)}</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${processedFileDimensions.width} x ${processedFileDimensions.height} pt</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${formatFileSize(processedFileSize)}</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${processingTime} s</td>
+          <td class="py-2 px-4 text-sm">
+            <a href="${URL.createObjectURL(originalFile)}" download="${originalFile.name}" class="text-blue-600 hover:underline mr-2">Original</a>
+            <a href="${URL.createObjectURL(blob)}" download="${filename}" class="text-blue-600 hover:underline">Processed</a>
+          </td>
+        `;
+        tableBody.appendChild(row);
+
+        fileCounter++; // Increment file number for next submission
+      } catch (error) {
+        console.error('Submission error:', error.message);
+        alert(`Failed to process PDF: ${error.message}`);
+      }
+    });
+
+    document.getElementById('dropZone').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
     });
   </script>
 </body>
