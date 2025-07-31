@@ -19,14 +19,23 @@ const PAPER_SIZES = {
 // Multer setup for handling file uploads
 const upload = multer({ dest: "uploads/" });
 
-app.use(express.static("public")); // For optional HTML UI
+// Enable CORS for client running on different port
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
+app.use(express.static("public")); // Serve static files (e.g., index.html)
 
 app.post("/resize", upload.single("pdf"), async (req, res) => {
   const size = req.body.size || "A1";
   const orderNumber = req.body.orderNumber || "0000";
   const fileNumber = req.body.fileNumber || "0";
 
-  if (!req.file) return res.status(400).send("No PDF file uploaded.");
+  if (!req.file) {
+    return res.status(400).json({ error: "No PDF file uploaded." });
+  }
 
   const token = crypto.randomBytes(8).toString("hex");
   const inputPdfPath = req.file.path;
@@ -40,10 +49,12 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
     const inputBytes = await fs.promises.readFile(inputPdfPath);
     const inputPdf = await PDFDocument.load(inputBytes);
     const mergedPdf = await PDFDocument.create();
-    const pageFiles = [];
 
     const targetSize = PAPER_SIZES[size];
-    if (!targetSize) return res.status(400).send("Invalid paper size.");
+    if (!targetSize) {
+      fs.unlinkSync(inputPdfPath);
+      return res.status(400).json({ error: "Invalid paper size." });
+    }
 
     const { width: portraitWidth, height: portraitHeight } = targetSize;
 
@@ -65,14 +76,22 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
     const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
 
-    // Send file for download
-    res.download(mergedPath, mergedFilename, () => {
-      // Cleanup temp files
+    // Send the processed PDF as a response
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${mergedFilename}"`,
+      "Content-Length": mergedBytes.length,
+    });
+    res.send(mergedBytes);
+
+    // Cleanup input file after response is sent
+    res.on("finish", () => {
       fs.unlinkSync(inputPdfPath);
     });
   } catch (err) {
     console.error("Error processing PDF:", err);
-    res.status(500).send("Internal server error.");
+    fs.unlinkSync(inputPdfPath);
+    res.status(500).json({ error: "Failed to process PDF: " + err.message });
   }
 });
 
