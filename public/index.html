@@ -8,40 +8,42 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center py-8">
-  <div class="bg-white p-8 rounded-xl shadow-lg max-w-4xl w-full">
+  <div class="bg-white p-8 rounded-xl shadow-lg max-w-5xl w-full">
     <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Resize Your PDF</h1>
     <form id="pdfForm" action="/resize" method="post" enctype="multipart/form-data" class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Upload PDF</label>
-        <div
-          id="dropZone"
-          class="mt-1 block w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-          ondragover="event.preventDefault()"
-          ondragenter="this.classList.add('border-blue-500', 'bg-blue-50')"
-          ondragleave="this.classList.remove('border-blue-500', 'bg-blue-50')"
-          ondrop="handleDrop(event)"
-        >
-          <p class="text-sm text-gray-600">Drag & drop your PDF or click to browse</p>
-          <input
-            type="file"
-            name="pdf"
-            accept=".pdf"
-            required
-            class="hidden"
-            id="fileInput"
-            onchange="handleFileSelect(event)"
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="md:col-span-3">
+          <label class="block text-sm font-medium text-gray-700">Upload PDF</label>
+          <div
+            id="dropZone"
+            class="mt-1 block w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            ondragover="event.preventDefault()"
+            ondragenter="this.classList.add('border-blue-500', 'bg-blue-50')"
+            ondragleave="this.classList.remove('border-blue-500', 'bg-blue-50')"
+            ondrop="handleDrop(event)"
           >
+            <p class="text-sm text-gray-600">Drag & drop your PDF or click to browse</p>
+            <input
+              type="file"
+              name="pdf"
+              accept=".pdf"
+              required
+              class="hidden"
+              id="fileInput"
+              onchange="handleFileSelect(event)"
+            >
+          </div>
+          <p id="fileName" class="mt-2 text-sm text-gray-600"></p>
         </div>
-        <p id="fileName" class="mt-2 text-sm text-gray-600"></p>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Select Paper Size</label>
-        <select name="size" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
-          <option value="A0">A0</option>
-          <option value="A1" selected>A1</option>
-          <option value="A2">A2</option>
-          <option value="A3">A3</option>
-        </select>
+        <div class="md:col-span-1">
+          <label class="block text-sm font-medium text-gray-700">Select Paper Size</label>
+          <select name="size"  class=" mt-1 h-11 px-3 rounded-md border border-gray-300 bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="A0">A0</option>
+            <option value="A1" selected>A1</option>
+            <option value="A2">A2</option>
+            <option value="A3">A3</option>
+          </select>
+        </div>
       </div>
       <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-150">
         Resize PDF
@@ -54,14 +56,19 @@
         <table class="min-w-full bg-white border border-gray-200 rounded-lg">
           <thead>
             <tr class="bg-gray-50">
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Type</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">File</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original Dimensions</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original Size</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Dimensions</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Size</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed Time</th>
-              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Action</th>
+              <th rowspan="2" class="py-2 px-4 text-left text-sm font-medium text-gray-700">File</th>
+              <th colspan="2" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Original</th>
+              <th colspan="3" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Processed</th>
+              <th colspan="2" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Action</th>
+            </tr>
+            <tr class="bg-gray-50">
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Dimensions</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Size</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Dimensions</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Size</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Time</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed</th>
             </tr>
           </thead>
           <tbody id="fileTableBody" class="divide-y divide-gray-200">
@@ -164,7 +171,6 @@
         const tableBody = document.getElementById('fileTableBody');
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td class="py-2 px-4 text-sm text-gray-600">Uploaded & Processed</td>
           <td class="py-2 px-4 text-sm text-gray-600">${originalFile.name}</td>
           <td class="py-2 px-4 text-sm text-gray-600">${originalFileDimensions.width} x ${originalFileDimensions.height} pt</td>
           <td class="py-2 px-4 text-sm text-gray-600">${formatFileSize(originalFile.size)}</td>
@@ -172,8 +178,10 @@
           <td class="py-2 px-4 text-sm text-gray-600">${formatFileSize(processedFileSize)}</td>
           <td class="py-2 px-4 text-sm text-gray-600">${processingTime} s</td>
           <td class="py-2 px-4 text-sm">
-            <a href="${URL.createObjectURL(originalFile)}" download="${originalFile.name}" class="text-blue-600 hover:underline mr-2">Original</a>
-            <a href="${URL.createObjectURL(blob)}" download="${filename}" class="text-blue-600 hover:underline">Processed</a>
+            <a href="${URL.createObjectURL(originalFile)}" download="${originalFile.name}" class="text-blue-600 hover:underline">Download</a>
+          </td>
+          <td class="py-2 px-4 text-sm">
+            <a href="${URL.createObjectURL(blob)}" download="${filename}" class="text-blue-600 hover:underline">Download</a>
           </td>
         `;
         tableBody.appendChild(row);
