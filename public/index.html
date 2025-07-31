@@ -1,23 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Resize</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Resize and Download PDF</h1>
-  <form action="/resize" method="post" enctype="multipart/form-data">
-    <label>Select PDF: <input type="file" name="pdf" required /></label><br />
-    <label>Paper Size:
-      <select name="size">
-        <option value="A0">A0</option>
-        <option value="A1" selected>A1</option>
-        <option value="A2">A2</option>
-        <option value="A3">A3</option>
-      </select>
-    </label><br />
-    <label>Order #: <input type="text" name="orderNumber" value="1244" /></label><br />
-    <label>File #: <input type="text" name="fileNumber" value="1" /></label><br />
-    <button type="submit">Resize PDF</button>
-  </form>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Resize Your PDF</h1>
+    <form id="pdfForm" action="/resize" method="post" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Upload PDF</label>
+        <div
+          id="dropZone"
+          class="mt-1 block w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+          ondragover="event.preventDefault()"
+          ondragenter="this.classList.add('border-blue-500', 'bg-blue-50')"
+          ondragleave="this.classList.remove('border-blue-500', 'bg-blue-50')"
+          ondrop="handleDrop(event)"
+        >
+          <p class="text-sm text-gray-600">Drag & drop your PDF or click to browse</p>
+          <input
+            type="file"
+            name="pdf"
+            accept=".pdf"
+            required
+            class="hidden"
+            id="fileInput"
+            onchange="handleFileSelect(event)"
+          >
+        </div>
+        <p id="fileName" class="mt-2 text-sm text-gray-600"></p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Select Paper Size</label>
+        <select name="size" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+          <option value="A0">A0</option>
+          <option value="A1" selected>A1</option>
+          <option value="A2">A2</option>
+          <option value="A3">A3</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Order Number</label>
+        <input type="text" name="orderNumber" value="1244" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">File Number</label>
+        <input type="text" name="fileNumber" value="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+      </div>
+      <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-150">
+        Resize & Download
+      </button>
+    </form>
+  </div>
+
+  <script>
+    function handleDrop(event) {
+      event.preventDefault();
+      const dropZone = event.target.closest('#dropZone');
+      dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+      const fileInput = document.getElementById('fileInput');
+      const files = event.dataTransfer.files;
+      if (files.length && files[0].type === 'application/pdf') {
+        fileInput.files = files;
+        document.getElementById('fileName').textContent = files[0].name;
+      } else {
+        alert('Please drop a valid PDF file.');
+      }
+    }
+
+    function handleFileSelect(event) {
+      const fileInput = event.target;
+      if (fileInput.files.length) {
+        document.getElementById('fileName').textContent = fileInput.files[0].name;
+      }
+    }
+
+    // Enable click-to-select on drop zone
+    document.getElementById('dropZone').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+
+    // Validate form before submission
+    document.getElementById('pdfForm').addEventListener('submit', function(event) {
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) {
+        event.preventDefault();
+        alert('Please upload a PDF file.');
+      }
+    });
+  </script>
 </body>
 </html>
