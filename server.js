@@ -6,7 +6,7 @@ const { PDFDocument } = require("pdf-lib");
 const crypto = require("crypto");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Paper sizes in points
 const PAPER_SIZES = {
@@ -82,7 +82,7 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
       mergedPdf.addPage(copiedPage);
     }
 
-    const mergedFilename = `Order${safeOrderNumber}_File${safeFileNumber}.pdf`;
+    const mergedFilename = `Order${safeOrderNumber}_File${safeFileNumber}_${token}.pdf`;
     const mergedPath = path.join(processedDir, mergedFilename);
     const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
