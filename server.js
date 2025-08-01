@@ -6,7 +6,7 @@ const { PDFDocument } = require("pdf-lib");
 const crypto = require("crypto");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Paper sizes in points
 const PAPER_SIZES = {
