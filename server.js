@@ -3,10 +3,20 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument } = require("pdf-lib");
+const session = require("express-session");
 const crypto = require("crypto");
 
 const app = express();
 const PORT = 3000;
+
+app.use(session({
+  secret: "pdf-secret",
+  resave: false,
+  saveUninitialized: true,
+}));
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // Paper sizes in points
 const PAPER_SIZES = {
@@ -26,10 +36,88 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static("public")); // Serve static files (e.g., index.html)
+const processingRecords = [];
+const feedbacks = [];
 
-app.post("/resize", upload.single("pdf"), async (req, res) => {
+async function processWithPdfLib(inputBytes, size) {
+  const inputPdf = await PDFDocument.load(inputBytes);
+  const mergedPdf = await PDFDocument.create();
+
+  const targetSize = PAPER_SIZES[size];
+  const { width: portraitWidth, height: portraitHeight } = targetSize;
+
+  for (let i = 0; i < inputPdf.getPageCount(); i++) {
+    const [copiedPage] = await mergedPdf.copyPages(inputPdf, [i]);
+    const { width, height } = copiedPage.getSize();
+
+    const isLandscape = width > height;
+    const targetWidth = isLandscape ? portraitHeight : portraitWidth;
+    const targetHeight = isLandscape ? portraitWidth : portraitHeight;
+    const scale = Math.min(targetWidth / width, targetHeight / height);
+
+    copiedPage.scale(scale, scale);
+    mergedPdf.addPage(copiedPage);
+  }
+
+  return mergedPdf.save();
+}
+
+async function processWithMock(inputBytes, size) {
+  // For MVP we reuse pdf-lib implementation
+  return processWithPdfLib(inputBytes, size);
+}
+
+const PROCESSORS = {
+  "pdf-lib": processWithPdfLib,
+  mock: processWithMock,
+};
+
+const USERS = { admin: "password" };
+
+function authMiddleware(req, res, next) {
+  if (req.session.user) return next();
+  return res.redirect("/login");
+}
+
+app.use("/processed", authMiddleware, express.static("processed"));
+app.use("/public", express.static("public"));
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  if (USERS[username] && USERS[username] === password) {
+    req.session.user = username;
+    return res.json({ success: true });
+  }
+  return res.status(401).json({ message: "Invalid credentials" });
+});
+
+app.post("/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
+});
+
+app.get("/records", authMiddleware, (req, res) => {
+  res.json({ records: processingRecords, feedbacks });
+});
+
+app.post("/feedback", authMiddleware, (req, res) => {
+  const { id, status, note } = req.body;
+  feedbacks.push({ id, status, note });
+  res.json({ success: true });
+});
+
+app.get("/", authMiddleware, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.post("/resize", authMiddleware, upload.single("pdf"), async (req, res) => {
   const size = req.body.size || "A1";
+  const processor = req.body.processor || "pdf-lib";
   const orderNumber = req.body.orderNumber || "0000";
   const fileNumber = req.body.fileNumber || "0";
 
@@ -47,47 +135,37 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
 
   try {
     const inputBytes = await fs.promises.readFile(inputPdfPath);
-    const inputPdf = await PDFDocument.load(inputBytes);
-    const mergedPdf = await PDFDocument.create();
-
+    const processFn = PROCESSORS[processor];
     const targetSize = PAPER_SIZES[size];
-    if (!targetSize) {
+    if (!processFn || !targetSize) {
       fs.unlinkSync(inputPdfPath);
-      return res.status(400).json({ error: "Invalid paper size." });
+      return res.status(400).json({ error: "Invalid parameters." });
     }
 
-    const { width: portraitWidth, height: portraitHeight } = targetSize;
-
-    for (let i = 0; i < inputPdf.getPageCount(); i++) {
-      const [copiedPage] = await mergedPdf.copyPages(inputPdf, [i]);
-      const { width, height } = copiedPage.getSize();
-
-      const isLandscape = width > height;
-      const targetWidth = isLandscape ? portraitHeight : portraitWidth;
-      const targetHeight = isLandscape ? portraitWidth : portraitHeight;
-      const scale = Math.min(targetWidth / width, targetHeight / height);
-
-      copiedPage.scale(scale, scale);
-      mergedPdf.addPage(copiedPage);
-    }
+    const start = Date.now();
+    const mergedBytes = await processFn(inputBytes, size);
+    const timeTaken = Date.now() - start;
 
     const mergedFilename = `Order${orderNumber}_File${fileNumber}.pdf`;
     const mergedPath = path.join(processedDir, mergedFilename);
-    const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
 
-    // Send the processed PDF as a response
-    res.set({
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${mergedFilename}"`,
-      "Content-Length": mergedBytes.length,
-    });
-    res.send(mergedBytes);
+    const record = {
+      id: token,
+      file: req.file.originalname,
+      processor,
+      size,
+      timeMs: timeTaken,
+      processedFile: mergedFilename,
+    };
+    processingRecords.push(record);
 
-    // Cleanup input file after response is sent
-    res.on("finish", () => {
-      fs.unlinkSync(inputPdfPath);
+    res.json({
+      record,
+      file: mergedBytes.toString("base64"),
     });
+
+    fs.unlinkSync(inputPdfPath);
   } catch (err) {
     console.error("Error processing PDF:", err);
     fs.unlinkSync(inputPdfPath);

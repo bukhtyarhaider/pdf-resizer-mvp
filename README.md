@@ -6,6 +6,10 @@
  
  cd (repo-name)
 
- npm install -r requirements.txt
+ npm install
 
  node server.js (It will run the server on http://localhost:3000)
+
+ Default credentials:
+  - username: admin
+  - password: password
