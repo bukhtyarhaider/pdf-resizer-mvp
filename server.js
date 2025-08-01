@@ -17,7 +17,17 @@ const PAPER_SIZES = {
 };
 
 // Multer setup for handling file uploads
-const upload = multer({ dest: "uploads/" });
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 10 * 1024 * 1024 }, // limit file size to 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed."));
+    }
+  },
+});
 
 // Enable CORS for client running on different port
 app.use((req, res, next) => {
@@ -28,14 +38,18 @@ app.use((req, res, next) => {
 
 app.use(express.static("public")); // Serve static files (e.g., index.html)
 
-app.post("/resize", upload.single("pdf"), async (req, res) => {
-  const size = req.body.size || "A1";
-  const orderNumber = req.body.orderNumber || "0000";
-  const fileNumber = req.body.fileNumber || "0";
+app.post("/resize", (req, res) => {
+  upload.single("pdf")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const size = req.body.size || "A1";
+    const orderNumber = req.body.orderNumber || "0000";
+    const fileNumber = req.body.fileNumber || "0";
 
-  if (!req.file) {
-    return res.status(400).json({ error: "No PDF file uploaded." });
-  }
+    if (!req.file) {
+      return res.status(400).json({ error: "No PDF file uploaded." });
+    }
 
   const token = crypto.randomBytes(8).toString("hex");
   const inputPdfPath = req.file.path;
@@ -93,6 +107,7 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
     fs.unlinkSync(inputPdfPath);
     res.status(500).json({ error: "Failed to process PDF: " + err.message });
   }
+  });
 });
 
 app.listen(PORT, () => {
