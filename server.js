@@ -52,7 +52,11 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
 
     const targetSize = PAPER_SIZES[size];
     if (!targetSize) {
-      fs.unlinkSync(inputPdfPath);
+      try {
+        await fs.promises.unlink(inputPdfPath);
+      } catch (delErr) {
+        console.error("Failed to delete uploaded file:", delErr);
+      }
       return res.status(400).json({ error: "Invalid paper size." });
     }
 
@@ -85,12 +89,20 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
     res.send(mergedBytes);
 
     // Cleanup input file after response is sent
-    res.on("finish", () => {
-      fs.unlinkSync(inputPdfPath);
+    res.on("finish", async () => {
+      try {
+        await fs.promises.unlink(inputPdfPath);
+      } catch (delErr) {
+        console.error("Failed to delete uploaded file after response:", delErr);
+      }
     });
   } catch (err) {
     console.error("Error processing PDF:", err);
-    fs.unlinkSync(inputPdfPath);
+    try {
+      await fs.promises.unlink(inputPdfPath);
+    } catch (delErr) {
+      console.error("Failed to delete uploaded file after error:", delErr);
+    }
     res.status(500).json({ error: "Failed to process PDF: " + err.message });
   }
 });
