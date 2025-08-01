@@ -71,7 +71,7 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
       mergedPdf.addPage(copiedPage);
     }
 
-    const mergedFilename = `Order${orderNumber}_File${fileNumber}.pdf`;
+    const mergedFilename = `Order${orderNumber}_File${fileNumber}_${token}.pdf`;
     const mergedPath = path.join(processedDir, mergedFilename);
     const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
