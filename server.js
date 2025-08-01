@@ -6,7 +6,7 @@ const { PDFDocument } = require("pdf-lib");
 const crypto = require("crypto");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Paper sizes in points
 const PAPER_SIZES = {
@@ -33,6 +33,17 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
   const orderNumber = req.body.orderNumber || "0000";
   const fileNumber = req.body.fileNumber || "0";
 
+  const isAlphanumeric = (value) => /^[a-z0-9]+$/i.test(value);
+
+  if (!isAlphanumeric(orderNumber) || !isAlphanumeric(fileNumber)) {
+    return res
+      .status(400)
+      .json({ error: "orderNumber and fileNumber must be alphanumeric." });
+  }
+
+  const safeOrderNumber = path.basename(orderNumber);
+  const safeFileNumber = path.basename(fileNumber);
+
   if (!req.file) {
     return res.status(400).json({ error: "No PDF file uploaded." });
   }
@@ -52,7 +63,11 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
 
     const targetSize = PAPER_SIZES[size];
     if (!targetSize) {
-      fs.unlinkSync(inputPdfPath);
+      try {
+        await fs.promises.unlink(inputPdfPath);
+      } catch (delErr) {
+        console.error("Failed to delete uploaded file:", delErr);
+      }
       return res.status(400).json({ error: "Invalid paper size." });
     }
 
@@ -71,7 +86,7 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
       mergedPdf.addPage(copiedPage);
     }
 
-    const mergedFilename = `Order${orderNumber}_File${fileNumber}.pdf`;
+    const mergedFilename = `Order${safeOrderNumber}_File${safeFileNumber}_${token}.pdf`;
     const mergedPath = path.join(processedDir, mergedFilename);
     const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
@@ -85,12 +100,20 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
     res.send(mergedBytes);
 
     // Cleanup input file after response is sent
-    res.on("finish", () => {
-      fs.unlinkSync(inputPdfPath);
+    res.on("finish", async () => {
+      try {
+        await fs.promises.unlink(inputPdfPath);
+      } catch (delErr) {
+        console.error("Failed to delete uploaded file after response:", delErr);
+      }
     });
   } catch (err) {
     console.error("Error processing PDF:", err);
-    fs.unlinkSync(inputPdfPath);
+    try {
+      await fs.promises.unlink(inputPdfPath);
+    } catch (delErr) {
+      console.error("Failed to delete uploaded file after error:", delErr);
+    }
     res.status(500).json({ error: "Failed to process PDF: " + err.message });
   }
 });
