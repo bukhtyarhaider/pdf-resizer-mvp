@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center py-8">
+  <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Login</h1>
+    <form id="loginForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Username</label>
+        <input type="text" name="username" required class="mt-1 w-full border border-gray-300 rounded-md p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Password</label>
+        <input type="password" name="password" required class="mt-1 w-full border border-gray-300 rounded-md p-2" />
+      </div>
+      <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Login</button>
+    </form>
+    <p id="error" class="text-red-600 mt-4"></p>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        window.location.href = '/';
+      } else {
+        const msg = await res.json();
+        document.getElementById('error').textContent = msg.message || 'Login failed';
+      }
+    });
+  </script>
+</body>
+</html>

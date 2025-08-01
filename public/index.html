@@ -44,6 +44,13 @@
             <option value="A3">A3</option>
           </select>
         </div>
+        <div class="md:col-span-1">
+          <label class="block text-sm font-medium text-gray-700">Processor</label>
+          <select name="processor" class="mt-1 h-11 px-3 rounded-md border border-gray-300 bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="pdf-lib" selected>pdf-lib</option>
+            <option value="mock">mock</option>
+          </select>
+        </div>
       </div>
       <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-150">
         Resize PDF
@@ -59,7 +66,8 @@
               <th rowspan="2" class="py-2 px-4 text-left text-sm font-medium text-gray-700">File</th>
               <th colspan="2" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Original</th>
               <th colspan="3" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Processed</th>
-              <th colspan="2" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Action</th>
+              <th rowspan="2" class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processor</th>
+              <th colspan="3" class="py-2 px-4 text-center text-sm font-medium text-gray-700">Action</th>
             </tr>
             <tr class="bg-gray-50">
               <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Dimensions</th>
@@ -69,6 +77,7 @@
               <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Time</th>
               <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Original</th>
               <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Processed</th>
+              <th class="py-2 px-4 text-left text-sm font-medium text-gray-700">Note</th>
             </tr>
           </thead>
           <tbody id="fileTableBody" class="divide-y divide-gray-200">
@@ -147,8 +156,6 @@
       formData.append('orderNumber', orderNumber);
       formData.append('fileNumber', fileCounter);
 
-      const startTime = performance.now();
-
       try {
         const response = await fetch('/resize', {
           method: 'POST',
@@ -160,16 +167,19 @@
           throw new Error(errorData.error || 'Failed to process PDF');
         }
 
-        const blob = await response.blob();
-        const contentDisposition = response.headers.get('content-disposition');
-        const filenameMatch = contentDisposition && contentDisposition.match(/filename="(.+)"/);
-        const filename = filenameMatch ? filenameMatch[1] : 'processed.pdf';
-        const processingTime = ((performance.now() - startTime) / 1000).toFixed(2);
+        const result = await response.json();
+        const processor = result.record.processor;
+        const processingTime = (result.record.timeMs / 1000).toFixed(2);
+        const blob = new Blob([
+          Uint8Array.from(atob(result.file), c => c.charCodeAt(0))
+        ], { type: 'application/pdf' });
+        const filename = result.record.processedFile;
         const processedFileDimensions = await getPdfDimensions(blob);
         const processedFileSize = blob.size;
 
         const tableBody = document.getElementById('fileTableBody');
         const row = document.createElement('tr');
+        const recordId = result.record.id;
         row.innerHTML = `
           <td class="py-2 px-4 text-sm text-gray-600">${originalFile.name}</td>
           <td class="py-2 px-4 text-sm text-gray-600">${originalFileDimensions.width} x ${originalFileDimensions.height} pt</td>
@@ -177,14 +187,29 @@
           <td class="py-2 px-4 text-sm text-gray-600">${processedFileDimensions.width} x ${processedFileDimensions.height} pt</td>
           <td class="py-2 px-4 text-sm text-gray-600">${formatFileSize(processedFileSize)}</td>
           <td class="py-2 px-4 text-sm text-gray-600">${processingTime} s</td>
+          <td class="py-2 px-4 text-sm text-gray-600">${processor}</td>
           <td class="py-2 px-4 text-sm">
             <a href="${URL.createObjectURL(originalFile)}" download="${originalFile.name}" class="text-blue-600 hover:underline">Download</a>
           </td>
           <td class="py-2 px-4 text-sm">
             <a href="${URL.createObjectURL(blob)}" download="${filename}" class="text-blue-600 hover:underline">Download</a>
           </td>
+          <td class="py-2 px-4 text-sm"><input type="text" class="border rounded-md p-1 text-sm" placeholder="note" /></td>
+          <td class="py-2 px-4 text-sm"><button data-id="${recordId}" data-status="acceptable" class="feedback bg-green-600 text-white px-2 py-1 rounded">Accept</button></td>
+          <td class="py-2 px-4 text-sm"><button data-id="${recordId}" data-status="unacceptable" class="feedback bg-red-600 text-white px-2 py-1 rounded">Reject</button></td>
         `;
         tableBody.appendChild(row);
+        row.querySelectorAll('.feedback').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const status = btn.dataset.status;
+            const note = row.querySelector('input').value;
+            await fetch('/feedback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: recordId, status, note })
+            });
+          });
+        });
 
         fileCounter++; // Increment file number for next submission
       } catch (error) {
