@@ -33,6 +33,17 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
   const orderNumber = req.body.orderNumber || "0000";
   const fileNumber = req.body.fileNumber || "0";
 
+  const isAlphanumeric = (value) => /^[a-z0-9]+$/i.test(value);
+
+  if (!isAlphanumeric(orderNumber) || !isAlphanumeric(fileNumber)) {
+    return res
+      .status(400)
+      .json({ error: "orderNumber and fileNumber must be alphanumeric." });
+  }
+
+  const safeOrderNumber = path.basename(orderNumber);
+  const safeFileNumber = path.basename(fileNumber);
+
   if (!req.file) {
     return res.status(400).json({ error: "No PDF file uploaded." });
   }
@@ -71,7 +82,7 @@ app.post("/resize", upload.single("pdf"), async (req, res) => {
       mergedPdf.addPage(copiedPage);
     }
 
-    const mergedFilename = `Order${orderNumber}_File${fileNumber}.pdf`;
+    const mergedFilename = `Order${safeOrderNumber}_File${safeFileNumber}.pdf`;
     const mergedPath = path.join(processedDir, mergedFilename);
     const mergedBytes = await mergedPdf.save();
     await fs.promises.writeFile(mergedPath, mergedBytes);
